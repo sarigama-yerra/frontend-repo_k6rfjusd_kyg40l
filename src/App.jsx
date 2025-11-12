@@ -145,7 +145,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Feather className="w-4 h-4" /> The Clucker's Collective
           </div>
-          <div className="text-sm">© {new Date().getFullYear()} NFT MAMA — All rights reserved.</div>
+          <div className="text-sm">© {new Date().getFullYear()} Clucker’s Collective — All rights reserved.</div>
         </div>
       </footer>
     </div>
