@@ -7,9 +7,9 @@ const API_BASE = import.meta.env.VITE_BACKEND_URL || ''
 
 function Stat({ label, value }) {
   return (
-    <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-      <div className="text-xs uppercase tracking-wider text-white/60">{label}</div>
-      <div className="text-white font-semibold mt-1">{value}</div>
+    <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 min-w-0">
+      <div className="text-xs uppercase tracking-wider text-white/60 truncate">{label}</div>
+      <div className="text-white font-semibold mt-1 break-all text-sm">{value}</div>
     </div>
   )
 }
@@ -25,6 +25,12 @@ function Section({ title, children }) {
       </div>
     </section>
   )
+}
+
+function formatAddress(addr) {
+  if (!addr || typeof addr !== 'string') return addr
+  if (addr.length <= 12) return addr
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 export default function App() {
@@ -59,7 +65,7 @@ export default function App() {
               <div className="mt-6 grid grid-cols-2 md:flex gap-3 text-sm">
                 <Stat label="Minting" value="Lazy Minting" />
                 <Stat label="Network" value={collection?.network || 'Polygon'} />
-                <Stat label="Contract" value={collection?.contract_address || '0x20a0...9104b'} />
+                <Stat label="Contract" value={formatAddress(collection?.contract_address) || '0x20a0…9104b'} />
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
