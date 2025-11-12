@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import Spline from '@splinetool/react-spline'
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
 import { motion } from 'framer-motion'
 import { ExternalLink, Feather, Sparkles, Verified, Copy, Check, Cpu } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || ''
+
+// Lazy-load Spline so the heavy 3D bundle isn't fetched until explicitly enabled
+const LazySpline = lazy(() => import('@splinetool/react-spline'))
 
 function Stat({ label, value, children }) {
   return (
@@ -77,10 +79,36 @@ function Copyable({ text, display, className = '' }) {
 export default function App() {
   const [collection, setCollection] = useState(null)
   const prefersReduced = usePrefersReducedMotion()
-  const [performanceMode, setPerformanceMode] = useState(true)
+
+  // Default to static to avoid any lag; users can opt-in to animation
+  const [performanceMode, setPerformanceMode] = useState(false)
+
+  // Track if hero is actually on screen; only then consider loading 3D
+  const heroRef = useRef(null)
+  const [heroInView, setHeroInView] = useState(false)
 
   useEffect(() => {
-    // Auto-disable heavy hero if user prefers reduced motion
+    const el = heroRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setHeroInView(true)
+            // We only need to know once
+            observer.disconnect()
+            break
+          }
+        }
+      },
+      { root: null, threshold: 0.2 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    // Respect reduced motion by forcing static mode
     if (prefersReduced) setPerformanceMode(false)
   }, [prefersReduced])
 
@@ -91,12 +119,20 @@ export default function App() {
   const fullAddress = collection?.contract_address || '0x20a0cc3d86a6fbf803d4b448b200df3288a9104b'
   const shortAddress = useMemo(() => formatAddress(fullAddress), [fullAddress])
 
+  // Only render heavy 3D when: user enabled + hero visible + not reduced motion
+  const enable3D = performanceMode && heroInView && !prefersReduced
+
   return (
     <div className="min-h-screen w-full bg-black text-white flex flex-col">
       {/* Hero */}
-      <div className="relative h-[56vh] md:h-[72vh] w-full overflow-hidden">
-        {performanceMode ? (
-          <Spline scene="https://prod.spline.design/44zrIZf-iQZhbQNQ/scene.splinecode" style={{ width: '100%', height: '100%' }} />
+      <div ref={heroRef} className="relative h-[56vh] md:h-[72vh] w-full overflow-hidden will-change-auto">
+        {enable3D ? (
+          <Suspense fallback={null}>
+            <LazySpline
+              scene="https://prod.spline.design/44zrIZf-iQZhbQNQ/scene.splinecode"
+              style={{ width: '100%', height: '100%' }}
+            />
+          </Suspense>
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-700/40 via-black to-black" />
         )}
@@ -109,15 +145,16 @@ export default function App() {
           <button
             onClick={() => setPerformanceMode(v => !v)}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs"
-            title={performanceMode ? 'Switch to static to improve performance' : 'Enable animated hero'}
+            title={performanceMode ? 'Switch to static to improve performance' : 'Enable animated hero (heavier)'}
           >
             <Cpu className="w-4 h-4" /> {performanceMode ? 'Animated' : 'Static'} Hero
           </button>
         </div>
 
-        <div className="absolute inset-0 flex items-end">
+        <div className="absolute inset-0 flex items-end md:items-end">
           <div className="max-w-6xl mx-auto px-6 pb-10 w-full">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            {/* Keep animations minimal to reduce jank */}
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-white/80 text-xs mb-3">
                 <Verified className="w-4 h-4 text-emerald-300" /> Official Collection
               </div>
