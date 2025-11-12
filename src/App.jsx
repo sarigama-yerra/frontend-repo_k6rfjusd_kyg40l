@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Spline from '@splinetool/react-spline'
 import { motion } from 'framer-motion'
-import { ExternalLink, Feather, Sparkles, Verified } from 'lucide-react'
+import { ExternalLink, Feather, Sparkles, Verified, Copy, Check, Cpu } from 'lucide-react'
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || ''
 
-function Stat({ label, value }) {
+function Stat({ label, value, children }) {
   return (
     <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 min-w-0">
       <div className="text-xs uppercase tracking-wider text-white/60 truncate">{label}</div>
-      <div className="text-white font-semibold mt-1 break-all text-sm">{value}</div>
+      {children ? (
+        children
+      ) : (
+        <div className="text-white font-semibold mt-1 break-all text-sm">{value}</div>
+      )}
     </div>
   )
 }
@@ -33,21 +37,83 @@ function formatAddress(addr) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(mq.matches)
+    update()
+    mq.addEventListener ? mq.addEventListener('change', update) : mq.addListener(update)
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', update) : mq.removeListener(update)
+    }
+  }, [])
+  return reduced
+}
+
+function Copyable({ text, display, className = '' }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch {}
+  }
+  return (
+    <div className={`group inline-flex items-center gap-2 mt-1 ${className}`}>
+      <span className="text-white font-semibold break-all text-sm">{display}</span>
+      <button
+        aria-label="Copy"
+        onClick={copy}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-white/10 hover:bg-white/20 border border-white/10"
+      >
+        {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const [collection, setCollection] = useState(null)
+  const prefersReduced = usePrefersReducedMotion()
+  const [performanceMode, setPerformanceMode] = useState(true)
+
+  useEffect(() => {
+    // Auto-disable heavy hero if user prefers reduced motion
+    if (prefersReduced) setPerformanceMode(false)
+  }, [prefersReduced])
 
   useEffect(() => {
     fetch(`${API_BASE}/api/collection`).then(res => res.json()).then(setCollection).catch(() => {})
   }, [])
 
+  const fullAddress = collection?.contract_address || '0x20a0cc3d86a6fbf803d4b448b200df3288a9104b'
+  const shortAddress = useMemo(() => formatAddress(fullAddress), [fullAddress])
+
   return (
     <div className="min-h-screen w-full bg-black text-white flex flex-col">
-      {/* Hero with Spline cover */}
-      <div className="relative h-[60vh] md:h-[75vh] w-full overflow-hidden">
-        <Spline scene="https://prod.spline.design/44zrIZf-iQZhbQNQ/scene.splinecode" style={{ width: '100%', height: '100%' }} />
+      {/* Hero */}
+      <div className="relative h-[56vh] md:h-[72vh] w-full overflow-hidden">
+        {performanceMode ? (
+          <Spline scene="https://prod.spline.design/44zrIZf-iQZhbQNQ/scene.splinecode" style={{ width: '100%', height: '100%' }} />
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-700/40 via-black to-black" />
+        )}
 
         {/* Gradient overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-black/40 to-black" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black" />
+
+        {/* Performance toggle */}
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={() => setPerformanceMode(v => !v)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs"
+            title={performanceMode ? 'Switch to static to improve performance' : 'Enable animated hero'}
+          >
+            <Cpu className="w-4 h-4" /> {performanceMode ? 'Animated' : 'Static'} Hero
+          </button>
+        </div>
 
         <div className="absolute inset-0 flex items-end">
           <div className="max-w-6xl mx-auto px-6 pb-10 w-full">
@@ -65,7 +131,9 @@ export default function App() {
               <div className="mt-6 grid grid-cols-2 md:flex gap-3 text-sm">
                 <Stat label="Minting" value="Lazy Minting" />
                 <Stat label="Network" value={collection?.network || 'Polygon'} />
-                <Stat label="Contract" value={formatAddress(collection?.contract_address) || '0x20a0…9104b'} />
+                <Stat label="Contract">
+                  <Copyable text={fullAddress} display={shortAddress} />
+                </Stat>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -124,7 +192,9 @@ export default function App() {
           </div>
           <div className="space-y-2">
             <div className="text-white/70">Deployment Contract Address</div>
-            <div className="text-white font-medium break-all">{collection?.contract_address || '0x20a0cc3d86a6fbf803d4b448b200df3288a9104b'}</div>
+            <div className="text-white font-medium break-all">
+              <Copyable text={fullAddress} display={fullAddress} className="mt-0" />
+            </div>
           </div>
           <div className="space-y-2">
             <div className="text-white/70">OpenSea</div>
